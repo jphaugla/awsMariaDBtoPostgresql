@@ -68,8 +68,6 @@ Parameters:
     Description: 'Select your Database Migration lab:'
     Type: String
     AllowedValues: 
-      - 'MariaDB to Amazon Aurora (MySQL)'
-      - 'MariaDB to Amazon RDS (MySQL)'
       - 'MariaDB to Amazon Aurora (PostgreSQL)'
       - 'MariaDB to Amazon RDS (PostgreSQL)'
       - 'MariaDB to Amazon S3'
@@ -183,12 +181,9 @@ Parameters:
     ConstraintDescription: Must be a valid EC2 instance type. 
 
 Conditions: 
-  Create-MariaDB-to-AuroraMySQL-Environment: !Equals [ !Ref LabType, 'MariaDB to Amazon Aurora (MySQL)' ]
   Create-MariaDB-to-AuroraPostgreSQL-Environment: !Equals [ !Ref LabType, 'MariaDB to Amazon Aurora (PostgreSQL)' ]
-  Create-MariaDB-to-RDSMySQL-Environment: !Equals [ !Ref LabType, 'MariaDB to RDS (MySQL)' ]
-  Create-MariaDB-to-RDSPostgreSQL-Environment: !Equals [ !Ref LabType, 'MariaDB to RDS (PostgreSQL)' ]
+  Create-MariaDB-to-RDSPostgreSQL-Environment: !Equals [ !Ref LabType, 'MariaDB to Amazon RDS (PostgreSQL)' ]
   Create-MariaDB-to-S3-Environment: !Equals [ !Ref LabType, 'DB2 to Amazon S3']
-  Create-DMS-resources: !Equals [true, !Ref CreateDMSComponents]
 
 Resources:
   DmsVpc:
@@ -487,56 +482,6 @@ Resources:
       DBInstanceClass: !Ref RDSInstanceType
       PubliclyAccessible: 'false'
 
-  AuroraMySQLCluster:
-    Condition: Create-MariaDB-to-AuroraMySQL-Environment
-    Type: AWS::RDS::DBCluster
-    Properties:
-      Tags:
-      - Key: Name
-        Value:
-          Fn::Join:
-          - "-"
-          - - Ref: AWS::StackName
-            - AuroraMySQLCluster
-      DBSubnetGroupName:
-        Ref: DBSubnetGroup
-      VpcSecurityGroupIds:
-      - Fn::GetAtt:
-        - RDSSecurityGroup
-        - GroupId
-      DatabaseName: AuroraMySQL
-      Engine: aurora
-      EngineVersion: 5.6.10a
-      MasterUsername: awssct
-      MasterUserPassword: Password1
-    DependsOn: RDSSecurityGroup 
-
-  AuroraMySQLInstance:
-    Condition: Create-MariaDB-to-AuroraMySQL-Environment
-    Type: AWS::RDS::DBInstance
-    Properties:
-      Tags:
-      - Key: Name
-        Value:
-          Fn::Join:
-          - "-"
-          - - Ref: AWS::StackName
-            - AuroraMySQLInstance
-      DBClusterIdentifier:
-        Ref: AuroraMySQLCluster
-      DBInstanceIdentifier:
-        Fn::Join:
-        - "-"
-        - - Ref: AWS::StackName
-          - AuroraMySQLInstance
-      DBSubnetGroupName:
-        Ref: DBSubnetGroup
-      DBInstanceClass: !Ref RDSInstanceType
-      Engine: aurora
-      EngineVersion: 5.6.10a
-      LicenseModel: general-public-license
-      PubliclyAccessible: 'false'
-
   MariaParameterGroup:
     Type: AWS::RDS::DBParameterGroup
     Properties:
@@ -581,6 +526,33 @@ Resources:
       - RDSSecurityGroup
       - DBSubnetGroup
 
+  RDSPostGresql:
+    Condition: Create-MariaDB-to-RDSPostgreSQL-Environment
+    Type: AWS::RDS::DBInstance
+    Properties:
+      AllocatedStorage: '5'
+      DBInstanceClass: !Ref RDSInstanceType
+      Engine: postgres
+      DBName: postgres
+      VPCSecurityGroups:
+      - Fn::GetAtt:
+        - RDSSecurityGroup
+        - GroupId
+      DBSubnetGroupName:
+        Ref: DBSubnetGroup
+      DBInstanceIdentifier:
+        Fn::Join:
+        - "-"
+        - - Ref: AWS::StackName
+          - RDSPostGresql
+      EngineVersion: '12.5'
+      MasterUsername: 'dbmaster'
+      MasterUserPassword: 'dbmaster123'
+    DeletionPolicy: Snapshot
+    DependsOn:
+      - RDSSecurityGroup
+      - DBSubnetGroup
+
   testkinesisstream:
     Type: 'AWS::Kinesis::Stream'
     Properties:
@@ -616,7 +588,6 @@ Resources:
                   - Arn
 
   DMSReplicationSubnetGroup:
-    Condition: Create-DMS-resources
     Type: 'AWS::DMS::ReplicationSubnetGroup'
     Properties:
       ReplicationSubnetGroupDescription: 'DMS replication subnet'
@@ -626,7 +597,6 @@ Resources:
       - Ref: Subnet3
 
   DMSReplicationInstance:
-    Condition: Create-DMS-resources
     Type: 'AWS::DMS::ReplicationInstance'
     DependsOn:
       - DMSCloudwatchRole
@@ -645,8 +615,9 @@ Resources:
         - InstanceSecurityGroup
         - GroupId
 
+
   DMSAuroraEndpoint:
-    Condition: Create-DMS-resources
+    Condition: Create-MariaDB-to-AuroraPostgreSQL-Environment
     Type: 'AWS::DMS::Endpoint'
     Properties:
       EngineName: aurora-postgresql
@@ -661,8 +632,23 @@ Resources:
     DependsOn:
       - AuroraPostgresqlCluster
 
+  DMSRDSEndpoint:
+    Condition: Create-MariaDB-to-RDSPostgreSQL-Environment
+    Type: 'AWS::DMS::Endpoint'
+    Properties:
+      EngineName: postgres
+      EndpointType: target
+      Username: 'dbmaster'
+      Password: 'dbmaster123'
+      ServerName: !GetAtt
+        - RDSPostGresql
+        - Endpoint.Address
+      Port: 5432
+      DatabaseName: 'postgres'
+    DependsOn:
+      - RDSPostGresql
+
   DMSKinesisEndpoint:
-    Condition: Create-DMS-resources
     Type: 'AWS::DMS::Endpoint'
     Properties:
       EngineName: kinesis
@@ -684,7 +670,6 @@ Resources:
       - DMSExecutionRole
 
   DMSMariaEndpoint:
-    Condition: Create-DMS-resources
     Type: 'AWS::DMS::Endpoint'
     Properties:
       EngineName: mariadb
@@ -700,7 +685,6 @@ Resources:
       - MariaDB
 
   DMSVpcRole:
-    Condition: Create-DMS-resources
     Type: 'AWS::IAM::Role'
     Properties:
       RoleName: dms-vpc-role-maria
@@ -718,7 +702,6 @@ Resources:
       Path: /
 
   DMSCloudwatchRole:
-    Condition: Create-DMS-resources
     Type: 'AWS::IAM::Role'
     Properties:
       RoleName: dms-cloudwatch-logs-role-maria
@@ -736,7 +719,7 @@ Resources:
       Path: /
       
   DMSTaskMigrationAurora:
-    Condition: Create-DMS-resources
+    Condition: Create-MariaDB-to-AuroraPostgreSQL-Environment
     Type: 'AWS::DMS::ReplicationTask'
     Properties:
       MigrationType: full-load-and-cdc
@@ -751,7 +734,6 @@ Resources:
       - DMSReplicationInstance
 
   DMSTaskMigrationKinesis:
-    Condition: Create-DMS-resources
     Type: 'AWS::DMS::ReplicationTask'
     Properties:
       MigrationType: full-load-and-cdc
@@ -765,6 +747,15 @@ Resources:
       - DMSMariaEndpoint
       - DMSReplicationInstance
 
+  Cloud9Instance:
+    Type: AWS::Cloud9::EnvironmentEC2
+    Properties:
+      Name: 'MariaDB-Postgresql-Cloud9-Instance'
+      Description: 'Cloud9 Instance for MariaDB to Postgresql'
+      AutomaticStopTimeMinutes: 240
+      SubnetId: !Ref Subnet3
+      InstanceType: 't3.small'
+    
 Outputs:
   SourceEC2PublicDNS:
     Description: Public DNS enpoint for the EC2 instance
@@ -785,12 +776,12 @@ Outputs:
       Fn::GetAtt:
       - AuroraPostgresqlCluster
       - Endpoint.Address
-  TargetAuroraMySQLEndpoint:
-    Condition: Create-MariaDB-to-AuroraMySQL-Environment
-    Description: Target Aurora (MySQL) Database Endpoint
+  TargetRDSPGEndpoint:
+    Condition: Create-MariaDB-to-RDSPostgreSQL-Environment
+    Description: Target RDS Postgresql Endpoint
     Value:
       Fn::GetAtt:
-      - AuroraMySQLInstance
+      - MariaDB
       - Endpoint.Address
   TargetKinesisEndpoint:
     Condition: Create-MariaDB-to-AuroraPostgreSQL-Environment
@@ -798,6 +789,12 @@ Outputs:
     Value:
       Fn::GetAtt:
       - testkinesisstream
+      - Arn
+  Cloud9Endpoint:
+    Description: Cloud9 URL
+    Value:
+      Fn::GetAtt:
+      - Cloud9Instance
       - Arn
   TargetKinesisRole:
     Condition: Create-MariaDB-to-AuroraPostgreSQL-Environment

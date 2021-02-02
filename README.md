@@ -37,7 +37,7 @@ Demo converting MariaDB database to postgresql using MariaDB and PostgresSQL RDS
 
 ## Overview
 
-Initially used a CloudFormation template from [Data Migration Immersion Day](https://dms-immersionday.workshop.aws/en).  This template has been modified to include an MariaDB RDS instance with DMS components.   This readme documents using SCT/DMS to convert MariaDB sample database to Aurora PostgreSQL.
+Initially used a CloudFormation template from [Data Migration Immersion Day](https://dms-immersionday.workshop.aws/en).  This template has been modified to include an MariaDB RDS instance with DMS components.   This readme documents using SCT/DMS to convert MariaDB sample databases to RDS PostgeSQL or Aurora PostgreSQL.
 
 ## AWS Services Used
 
@@ -46,13 +46,14 @@ Initially used a CloudFormation template from [Data Migration Immersion Day](htt
 * [AWS Cloudformation](https://aws.amazon.com/cloudformation/)
 * [AWS DMS Workshop](https://dms-immersionday.workshop.aws/en)
 * [Amazon Kinesis](https://aws.amazon.com/kinesis)
+* [AWS Cloud 9](https://aws.amazon.com/cloud9/)
 
 ## Technical Overview
 
-* Bring up DMS/SCT environment using modified immersion days template
+* Bring up DMS/SCT environment using modified immersion day template
 * Review Security Group Settings
-* Create sample MariaDB database
-* Use SCT and DMS to convert sample MariaDB database to PostgreSQL
+* Create sample MariaDB databases using Cloud9
+* Use SCT and DMS to convert sample MariaDB databases to PostgreSQL
 * Additional DMS setup to use kinesis 
 
 &nbsp;
@@ -69,47 +70,108 @@ Initially used a CloudFormation template from [Data Migration Immersion Day](htt
 
 ### Create Environment
 
-* Start with [AWS Account instructions](https://dms-immersionday.workshop.aws/en/envconfig/regular.html)
+* Some tips on creating an AWS account with [AWS Account instructions](https://dms-immersionday.workshop.aws/en/envconfig/regular.html)
 * After reviewing  "Introduction" and "Getting Started", follow the Regular AWS Account instructions. ![Regular AWS Account](README_PHOTOS/InitialNavigation.jpg)
 * Complete the "Login to the AWS Console" and "Create an EC2 Key Pair" steps
-* In the "Configure the Environment" step, use the provided ./templates/MariaDBWorkshop.yaml file instead of the link.  Choose SQL Server for the source database
+* In the "Configure the Environment" step, use the provided ./templates/maria2PG.yaml [maria2PG yaml](https://github.com/jphaugla/awsMariaDBtoPostgresql/blob/main/templates/maria2PG.yaml).  Choose SQL Server for the source database
 
 ### Edit Security Group Settings
 Additional ports need to be open to allow VNC connectivity to the redhat 8 instance to install MariaDB.  Additionally, using additional agents for DMS, can require additional ports to be open
 * Find the security group.  There are two security group created with the template.  Click on the InstanceSecurityGroup (not the DMSSecurityGroup)
-* Tighten security on the RDP rule.  Currently it is open to public 
-    * two choices-can open the ports to amazon ip using the amazon VPN.  *problem* vnc will not work while on amazon VPN.  vnc is needed for MariaDB install.
-        * it is best to log out of amazon vpn and use the non-amazon ip address
-        * get amazon ip address using [amazon checkip URL](http://checkip.amazonaws.com) 
-        * get ip address using a "get my ip" search
-        * a separate option is to use tightvnc client on the windows VM (vnc viewer is flaky on windows)
+* Tighten security on the RDP rule.  Currently, the windows EC2 instance RCP port it is open to public
     * Click "Edit Inbound Rules"
     * on the RDP inbound rule, remove "0.0.0.0/16" and put in the address obtained in checkip with a /32  e.g.  "1.2.3.4/32"
-    * open all internal communication on private.  Easy way is to change the inbound rule with Access Type of Oracle-RDS to All TCP.
-    * Click Add Rule and add a new rule for VNC access from the address found in checkip.  Use port range of 5900-6000
-    * Click Add Rule and add a new rule for SSH access from the address found in checkip.  Use inbound rule type "SSH"
+    * open all internal communication on private.  Easy way is to change the inbound rule with Access Type of Oracle-RDS to All TCP
     * Click "save rules"
 
 ## MariaDB Setup
+The MariaDB is set up as an RDS instance by the maria2PG cloudformation yaml file.  In the next step, an mysql/mariadb configuarion file will be created to defaul connection to our mysql instance.
+Set up the environment to connect to MariaDB using Cloud9
 
-
-### MariaDB sample database
-This is a set of mysql [sample databases](DBSubnetGroup)
-
-## Windows Steps
-
-### Install git
-
-Git is needed to pull this repository onto the windows machine.  The repository has some needed scripts.
-* Got to the [git download](https://git-scm.com/) 
-* Download the latest git release for windows
-* Double-click on the git exe file and follow the prompts to install
-* clone the git project using a windows DOC command line
-
+* Open the cloud 9 instance by going to the Cloud 9 Console
+* Open the IDE created by the MariaDB cloudformation template by clicking on the "Open IDE" button ![Open Cloud9 IDE](README_PHOTOS/opencloud9IDE.jpg)
+* Create a mysql environment file to easily connect to Maria DB from Cloud9.  The file can not be in the default environment directory of Cloud9.  The file needs to be in your account's home directory.
+* File example is below.  For the host name, use the target postgres (whether is is Aurora or RDB) endpoint
 ```bash
-cd "Desktop\DMS Workshop"
-git clone https://github.com/jphaugla/awsMariaDBtoPostgresql.git
+[client]
+host=your-project-mariadb.cmyrfrazjwrq.your-region.rds.amazonaws.com
+user=dbmaster
+password=dbmaster123
 ```
+* connect to the mariaDB database using the pre-installed mysql client
+```bash
+jphaugla1:~/environment $ mysql
+Welcome to the MySQL monitor.  Commands end with ; or \g.
+Your MySQL connection id is 127
+Server version: 5.5.5-10.4.8-MariaDB-log Source distribution
+
+Copyright (c) 2000, 2018, Oracle and/or its affiliates. All rights reserved.
+
+Oracle is a registered trademark of Oracle Corporation and/or its
+affiliates. Other names may be trademarks of their respective
+owners.
+
+Type 'help;' or '\h' for help. Type '\c' to clear the current input statement.
+
+mysql>
+```
+
+### Create sample databases
+This is a set of mysql [sample databases](https://dev.mysql.com/doc/index-other.html).  There is a pdf instruction guide for each of these sample databases also.  I will give the quickstart level steps but read these PDFs for more information
+
+* These are the sample databases ![sample databases](README_PHOTOS/mysqlSampleDBs.jpg)
+  * Note  a change was made to the parameter group for mariadb to prevent errors on the sakila import
+  * need to set log_bin_trust_function_creators =1  
+  * This is the error if the parameter is not set
+```bash
+  ERROR 1419 (HY000) at line 214 in file: './sakila-schema.sql': You do not have the SUPER privilege and binary logging is enabled (you *might* want to use the less safe log_bin_trust_function_creators variable)```
+```
+* Commands do download all these environments
+```bash
+wget https://downloads.mysql.com/docs/world.sql.gz
+wget https://downloads.mysql.com/docs/world_x-db.tar.gz
+wget https://downloads.mysql.com/docs/sakila-db.tar.gz
+wget https://downloads.mysql.com/docs/menagerie-db.tar.gz
+git clone https://github.com/datacharmer/test_db.git
+```
+* Uncompress each of the sample databases
+```bash
+tar -xvzf menagerie-db.tar.gz 
+tar -xvzf sakila-db.tar.gz
+gunzip world.sql.gz 
+tar -xvzf world_x-db.tar.gz
+```
+* include each of the databases
+  * create sakila and both world databases
+```bash
+mysql
+source sakila-db/sakila-schema.sql
+source sakila-db/sakila-data.sql
+source world_x-db/world_x.sql
+source world.sql
+```
+  * now test_db
+```bash
+cd test_db
+mysql
+source employees.sql
+cd ..
+```
+  * finally, the menagerie database
+```bash
+cd menagerie-db
+mysql
+create database menagerie
+use menagerie
+SOURCE cr_pet_tbl.sql
+LOAD DATA LOCAL INFILE 'pet.txt' INTO TABLE pet;
+SOURCE ins_puff_rec.sql
+SOURCE cr_event_tbl.sql
+LOAD DATA LOCAL INFILE 'event.txt' INTO TABLE event;
+```
+
+## Windows Setup
+
 
 ### SCT
 
