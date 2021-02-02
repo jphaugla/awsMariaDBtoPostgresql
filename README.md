@@ -180,11 +180,11 @@ Return back to the DMS and SCT steps using the SQL Server to Amazon Aurora Postg
 * Start back at this point in the [guide](https://dms-immersionday.workshop.aws/en/sqlserver-aurora-postgres.html)
 * Perform the following Part 1 Schema Conversion Steps: "Connect to the EC2 Instance", "Install the AWS Schema Conversion Tool (AWS SCT)"
 * Restart the Windows Server (this seems to be important after the SCT install)
-* Create a New Project using New Project Wizard ![Create Project](README_PHOTOS/DefineProject.jpg)
-* Connect to MariaDB ![Connect to MariaDB](README_PHOTOS/ConnectToMariaDB.jpg)
-    * if requested for the mariadb LUW driver point at mariadbjcc4.jar file (usually there are several of them after installing the drivers and the client drivers)
+* Create a New Project using New Project Wizard ![Create Project](README_PHOTOS/newMariaDBproject.jpg)
+* Connect to MariaDB ![Connect to MariaDB](README_PHOTOS/connectToMaria.jpg)
 * Accept the risks
-* Click on the "MariaDBINST1" instance on the left panel and click "Next" to generate the assessment report
+* Click on the each of the databases on the left panel and click "Next" to generate the assessment report
+    * I have saved all the assessment reports for these example databases in a [github folder]
 * Click Next and enter parameters for Aurora PostgreSQL connection ![Aurora Connection](README_PHOTOS/SCTAuroraConnection.jpg)
     * To find the password, look back in the original templates/DMSWorkshop.yaml in the repository home
     * Click "Finish"
