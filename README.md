@@ -17,9 +17,8 @@ Demo converting MariaDB database to postgresql using MariaDB and PostgresSQL RDS
   - [Create Environment](#create-environment)
   - [Edit Security Group Settings](#edit-security-group-settings)
 - [MariaDB Setup](#mariadb-setup)
-  - [Install Pre-requisite Libraries](#install-prerequisite-libraries)
-- [Windows Steps](#windows-steps)
-  - [Install git](#install-git)
+  - [Create Sample Databases](#create-sample-databases)
+- [Windows Setup](#windows-setup)
   - [SCT](#sct)
   - [Troubleshooting Windows](#troubleshooting-windows)
 - [MariaDB with DMS](#mariadb-with-dms)
@@ -28,10 +27,10 @@ Demo converting MariaDB database to postgresql using MariaDB and PostgresSQL RDS
 - [Create DMS Resources](#create-dms-resources)
   - [Create DMS Replication Instance](#create-dms-replication-instance)   
   - [Create DMS Endpoints](#create-dms-endpoints)
-  - [Create IBM to Aurora Task](#create-ibm-to-aurora-task)
-  - [Create IBM to Kinesis Task](#create-ibm-to-kinesis-task)
+  - [Create MariaDB to Postgresql Task](#create-mariadb-to-postgresql-task)
+  - [Create MariaDB to Kinesis Task](#create-mariadb-to-kinesis-task)
 - [Cleaning up](#cleaning-up)
-  
+
 
 &nbsp;
 
@@ -47,6 +46,7 @@ Initially used a CloudFormation template from [Data Migration Immersion Day](htt
 * [AWS DMS Workshop](https://dms-immersionday.workshop.aws/en)
 * [Amazon Kinesis](https://aws.amazon.com/kinesis)
 * [AWS Cloud 9](https://aws.amazon.com/cloud9/)
+* [Amazon RDS](https://aws.amazon.com/rds/)
 
 ## Technical Overview
 
@@ -76,7 +76,6 @@ Initially used a CloudFormation template from [Data Migration Immersion Day](htt
 * In the "Configure the Environment" step, use the provided ./templates/maria2PG.yaml [maria2PG yaml](https://github.com/jphaugla/awsMariaDBtoPostgresql/blob/main/templates/maria2PG.yaml).  Choose SQL Server for the source database
 
 ### Edit Security Group Settings
-Additional ports need to be open to allow VNC connectivity to the redhat 8 instance to install MariaDB.  Additionally, using additional agents for DMS, can require additional ports to be open
 * Find the security group.  There are two security group created with the template.  Click on the InstanceSecurityGroup (not the DMSSecurityGroup)
 * Tighten security on the RDP rule.  Currently, the windows EC2 instance RCP port it is open to public
     * Click "Edit Inbound Rules"
@@ -90,8 +89,8 @@ Set up the environment to connect to MariaDB using Cloud9
 
 * Open the cloud 9 instance by going to the Cloud 9 Console
 * Open the IDE created by the MariaDB cloudformation template by clicking on the "Open IDE" button ![Open Cloud9 IDE](README_PHOTOS/opencloud9IDE.jpg)
-* Create a mysql environment file to easily connect to Maria DB from Cloud9.  The file can not be in the default environment directory of Cloud9.  The file needs to be in your account's home directory.
-* File example is below.  For the host name, use the target postgres (whether is is Aurora or RDB) endpoint
+* Create a mysql environment file to easily connect to MariaDB from Cloud9.  The file can not be in the default environment directory of Cloud9.  The file needs to be in your account's home directory.  Do ```cd ..``` to get to home directory.  The file name starts with a period and is named ".my.cnf"
+* File example is below.  For the host name, use the target mariaDB source endpoint. This is very wordy [mysql doc linke](https://dev.mysql.com/doc/refman/8.0/en/option-files.html)
 ```bash
 [client]
 host=your-project-mariadb.cmyrfrazjwrq.your-region.rds.amazonaws.com
