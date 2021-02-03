@@ -497,15 +497,33 @@ Resources:
       Parameters:
         log_bin_trust_function_creators: 1
 
+  MariaParameterGroup105:
+    Type: AWS::RDS::DBParameterGroup
+    Properties:
+      Tags:
+      - Key: Name
+        Value:
+          Fn::Join:
+          - "-"
+          - - Ref: AWS::StackName
+            - MariaParameterGroup
+      Description: RDS MariaDB DBParameterGroup
+      Family: mariadb10.5
+      Parameters:
+        log_bin_trust_function_creators: 1
+        binlog_format: 'ROW'
+        binlog_checksum: 'NONE'
+
   MariaDB:
     Type: AWS::RDS::DBInstance
     Properties:
       AllocatedStorage: '5'
+      AllowMajorVersionUpgrade: 'true'
       DBInstanceClass: !Ref MariaInstanceType
       Engine: mariadb
       DBName: MariaDB
       DBParameterGroupName:
-        Ref: MariaParameterGroup
+        Ref: MariaParameterGroup105
       VPCSecurityGroups:
       - Fn::GetAtt:
         - RDSSecurityGroup
@@ -517,12 +535,13 @@ Resources:
         - "-"
         - - Ref: AWS::StackName
           - MariaDB
-      EngineVersion: '10.4.8'
+      EngineVersion: '10.5.8'
       MasterUsername: 'dbmaster'
       MasterUserPassword: 'dbmaster123'
     DeletionPolicy: Snapshot
     DependsOn:
       - MariaParameterGroup
+      - MariaParameterGroup105
       - RDSSecurityGroup
       - DBSubnetGroup
 
@@ -531,6 +550,7 @@ Resources:
     Type: AWS::RDS::DBInstance
     Properties:
       AllocatedStorage: '5'
+      AllowMajorVersionUpgrade: 'true'
       DBInstanceClass: !Ref RDSInstanceType
       Engine: postgres
       DBName: postgres
@@ -718,6 +738,34 @@ Resources:
         - 'arn:aws:iam::aws:policy/service-role/AmazonDMSCloudWatchLogsRole'
       Path: /
       
+  DMSTaskMigrationRDS:
+    Condition: Create-MariaDB-to-RDSPostgreSQL-Environment
+    Type: 'AWS::DMS::ReplicationTask'
+    Properties:
+      MigrationType: full-load-and-cdc
+      ReplicationInstanceArn: !Ref DMSReplicationInstance
+      SourceEndpointArn: !Ref DMSMariaEndpoint
+      TableMappings: >-
+        {"rules":[{"rule-type":"selection","rule-id":"4","rule-name":"4","object-locator":{"schema-name":"%","table-name":"%"},"rule-action":"include","filters":[]}]}
+      TargetEndpointArn: !Ref DMSRDSEndpoint
+    DependsOn:
+      - DMSRDSEndpoint
+      - DMSMariaEndpoint
+      - DMSReplicationInstance
+
+  DMSTaskMigrationKinesis:
+    Type: 'AWS::DMS::ReplicationTask'
+    Properties:
+      MigrationType: full-load-and-cdc
+      ReplicationInstanceArn: !Ref DMSReplicationInstance
+      SourceEndpointArn: !Ref DMSMariaEndpoint
+      TableMappings: >-
+        {"rules":[{"rule-type":"selection","rule-id":"4","rule-name":"4","object-locator":{"schema-name":"%","table-name":"%"},"rule-action":"include","filters":[]}]}
+      TargetEndpointArn: !Ref DMSKinesisEndpoint
+    DependsOn:
+      - DMSKinesisEndpoint
+      - DMSMariaEndpoint
+      - DMSReplicationInstance
   DMSTaskMigrationAurora:
     Condition: Create-MariaDB-to-AuroraPostgreSQL-Environment
     Type: 'AWS::DMS::ReplicationTask'
@@ -726,7 +774,7 @@ Resources:
       ReplicationInstanceArn: !Ref DMSReplicationInstance
       SourceEndpointArn: !Ref DMSMariaEndpoint
       TableMappings: >-
-        {"rules":[{"rule-type":"transformation","rule-id":"1","rule-name":"1","rule-target":"column","object-locator":{"schema-name":"%","table-name":"%","column-name":"%"},"rule-action":"convert-lowercase","value":null,"old-value":null},{"rule-type":"transformation","rule-id":"2","rule-name":"2","rule-target":"table","object-locator":{"schema-name":"%","table-name":"%"},"rule-action":"convert-lowercase","value":null,"old-value":null},{"rule-type":"transformation","rule-id":"3","rule-name":"3","rule-target":"schema","object-locator":{"schema-name":"%"},"rule-action":"convert-lowercase","value":null,"old-value":null},{"rule-type":"selection","rule-id":"4","rule-name":"4","object-locator":{"schema-name":"DB2INST%","table-name":"%"},"rule-action":"include","filters":[]}]}
+        {"rules":[{"rule-type":"selection","rule-id":"4","rule-name":"4","object-locator":{"schema-name":"%","table-name":"%"},"rule-action":"include","filters":[]}]}
       TargetEndpointArn: !Ref DMSAuroraEndpoint
     DependsOn:
       - DMSAuroraEndpoint

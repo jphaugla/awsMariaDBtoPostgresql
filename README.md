@@ -184,13 +184,14 @@ Return back to the DMS and SCT steps using the SQL Server to Amazon Aurora Postg
 * Connect to MariaDB ![Connect to MariaDB](README_PHOTOS/connectToMaria.jpg)
 * Accept the risks
 * Click on the each of the databases on the left panel and click "Next" to generate the assessment report
-    * I have saved all the assessment reports for these example databases in a [github folder]
-* Click Next and enter parameters for Aurora PostgreSQL connection ![Aurora Connection](README_PHOTOS/SCTAuroraConnection.jpg)
-    * To find the password, look back in the original templates/DMSWorkshop.yaml in the repository home
+    * I have saved all the assessment reports for these example databases in a [github folder](https://github.com/jphaugla/awsMariaDBtoPostgresql/tree/main/reports)
+* Click Next and enter parameters for Aurora PostgreSQL connection ![Aurora Connection](README_PHOTOS/connectToRDSPG.jpg)
+    * To find the password, look back in the original templates/maria2PG.yaml in the repository home
     * Click "Finish"
-* Right click on the "MariaDBINST1" database in the left panel and select Convert Schema to generate the data definition language (DDL) statements for the target database.
-* Right click on the mariadbinst1 schema in the right-hand panel, and click Apply to database. click Yes
-* Can see the tables now in the target database.  Use the pg4admin tool to verify the new schema exists but is not populated.
+* Right click on each schema in the left panel and select Convert Schema to generate the data definition language (DDL) statements for the target database.
+* Right click on each schema in the right-hand panel, and click Apply to database. click Yes
+* Can see the tables now in the target database.  Use the pgadmin tool to verify the new schema exists but is not populated.
+* NOTE:  if using mysql workbench to connect to mariaDB, must be at 10.5 or higher.  At 10.4, mysql workbench can not read the schmema
 
 ### Troubleshooting Windows
 
@@ -202,22 +203,26 @@ Return back to the DMS and SCT steps using the SQL Server to Amazon Aurora Postg
 
 Several links for background on changes needed for MariaDB setup with DMS
 
-* Link for using IBM MariaDB as a source for DMS [MariaDB DMS](https://docs.aws.amazon.com/dms/latest/userguide/CHAP_Source.MariaDB.html) 
-* Link for changing logarchmeth1 on mariadb 11.5 [Turn on Log](https://www.ibm.com/support/knowledgecenter/SSEPGG_11.5.0/com.ibm.mariadb.luw.admin.config.doc/doc/r0011448.html)
-* Link to change Configuration Parameters.  [Configuration Parameter Change](https://www.ibm.com/support/knowledgecenter/en/SSEPGG_11.5.0/com.ibm.mariadb.luw.admin.config.doc/doc/t0005243.html)
-* NOTE:  LOGARCHMETH1 and LOGARCHMETH2 are for newer versions of MariaDB.  Older versions use LOGRETAIN
+* Link for using MariaDB/Mysql as a source for DMS [MariaDB DMS](https://docs.aws.amazon.com/dms/latest/userguide/CHAP_Source.MySQL.html) 
+* Turn on replication for RDS MariaDB
+  * for reference, these are steps for EC2 MariaDB
 
 ### MariaDB Replication
 
-
+* For documentation, directions for [self-managed MySQL replication](https://docs.aws.amazon.com/dms/latest/userguide/CHAP_Source.MySQL.html#CHAP_Source.MySQL.CustomerManaged)
+* [Turn on replication for RDS MariaDB](https://docs.aws.amazon.com/dms/latest/userguide/CHAP_Source.MySQL.html#CHAP_Source.MySQL.AmazonManaged)
+  * Automated backups are turned on with the cloudformation script
+  * Ensure that the binary logs are available to AWS DMS. Because AWS-managed MySQL-compatible databases purge the binary logs as soon as possible, you should increase the length of time that the logs remain available. For example, to increase log retention to 24 hours, run the following command.
+```bash
+mysql
+call mysql.rds_set_configuration('binlog retention hours', 24);
+```
+  * These parameters are set in the cloudformation yaml file for the MariaDB parameter group
+    * binlog_format: "ROW"
+    * binlog_checksum: "NONE"
+  
 ### MariaDB Drop Foreign Keys
-Open the pgadmin tool by clicking on the elephant icon on the bottom of the windows server
-This is very similar to the immersion day Configure the Target DataBase step [Configure Target](https://dms-immersionday.workshop.aws/en/sqlserver-aurora-postgres/data-migration/config-target/config-target.html) but using the drop_constraints from the git repo
-
- Using the tree structure on the left, find the AuroraDB database and then the mariadbinst1 schema and click on the schema
-* Use Tools->Query Tool to open the query tool
-* click on the "open folder" icons on far left of the icons for pagamin query tool and open the drop_constraints script
-    * the script is at C:\Users\Administrator\Desktop\DMS Workshop\awsMariaDBToAuroraPostgres\scripts\drop_constraints.sql
+These sample databases don't have foreign keys but they would need to be dropped here if any existed
 
 ## Create DMS Resources
 These resources are automatically created if the flag is set in the script but the task must be started manually
@@ -231,36 +236,22 @@ Some choices here.  In addition, can add a separate Migration Task using the sam
 ### Create DMS Endpoints 
 If the parameter "CreateDMSComponents" in the initial Cloudformation template was set to true, these components will already be created and need validation.  Test the source MariaDB endpoint.  Verify aurora and kinesis endpoint tests was successful.
 
-* Follow these [Steps](https://dms-immersionday.workshop.aws/en/sqlserver-aurora-postgres/data-migration/endpoints/endpoints.html) 
-* Use these parameters for the source ![source parameters](README_PHOTOS/SourceDatabase.jpg)
+* To review, follow these [Steps](https://dms-immersionday.workshop.aws/en/sqlserver-aurora-postgres/data-migration/endpoints/endpoints.html)
 * THe specific PostgreSQL endpoints, KinesisEndpoints and TargetKinesis roles are output in the cloudformation
 
-### Create IBM to Aurora Task 
+### Create MariaDB to Postgresql Task 
 Similar to this create [DMS Migration Task](https://dms-immersionday.workshop.aws/en/sqlserver-aurora-postgres/data-migration/migration-task/migration-task.html)
 If the parameter "CreateDMSComponents" in the initial Cloudformation template was set to true, the Task will already be created.  Just start it.
 
-* add a selection rule where schema name is like "MariaDBINS%"
-* MariaDB uses upper case schema, table, and column names so these must all be converted in mapping rules
-* add 3 separate mapping rules for columns, tables and schema
-* using the wizard you need this.  (instead can put JSON in directly-down below)
-```bash
-where schema name is like '%' and table name is like '%' and column name is like "%", convert-lowercase
-where schema name is like '%' and table name is like '%', convert-lowercase
-where schema name is like '%'  convert-lowercase
-```
+* add a selection rule where schema name is like "%"
+
 * JSON to use directly
 ```bash
 {"rules":[{"rule-type":"transformation","rule-id":"1","rule-name":"1","rule-target":"column","object-locator":{"schema-name":"%","table-name":"%","column-name":"%"},"rule-action":"convert-lowercase","value":null,"old-value":null},{"rule-type":"transformation","rule-id":"2","rule-name":"2","rule-target":"table","object-locator":{"schema-name":"%","table-name":"%"},"rule-action":"convert-lowercase","value":null,"old-value":null},{"rule-type":"transformation","rule-id":"3","rule-name":"3","rule-target":"schema","object-locator":{"schema-name":"%"},"rule-action":"convert-lowercase","value":null,"old-value":null},{"rule-type":"selection","rule-id":"4","rule-name":"4","object-locator":{"schema-name":"MariaDBINST%","table-name":"%"},"rule-action":"include","filters":[]}]}
 ```
 
-* Upgrading to current verson of DMS
-* This is the error if 11.5 is used
-
-```bash
-2021-01-08T01:36:14 [TASK_MANAGER ]E: No tables were found at task initialization. Either the selected table(s) no longer exist or no match was found for the table selection pattern(s). [1021707] (replicationtask.c:2107)
-```
-
-### Create IBM to Kinesis Task
+### Create MariaDB to Kinesis Task
+This task is created with the script
 * Add a kinesis Stream with a shard for each table planning to be moved to kinesis
 * Add a kinesis endpoint with these settings:
     * MessageFormat: json
