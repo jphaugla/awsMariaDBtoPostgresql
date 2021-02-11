@@ -90,7 +90,7 @@ Set up the environment to connect to MariaDB using Cloud9
 * Open the cloud 9 instance by going to the Cloud 9 Console
 * Open the IDE created by the MariaDB cloudformation template by clicking on the "Open IDE" button ![Open Cloud9 IDE](README_PHOTOS/opencloud9IDE.jpg)
 * Create a mysql environment file to easily connect to MariaDB from Cloud9.  The file can not be in the default environment directory of Cloud9.  The file needs to be in your account's home directory.  Do ```cd ..``` to get to home directory.  The file name starts with a period and is named ".my.cnf"
-* File example is below.  For the host name, use the target mariaDB source endpoint. This is very wordy [mysql doc linke](https://dev.mysql.com/doc/refman/8.0/en/option-files.html)
+* File example is below.  For the host name, use the target mariaDB source endpoint. This is very wordy [mysql doc link](https://dev.mysql.com/doc/refman/8.0/en/option-files.html)
 ```bash
 [client]
 host=your-project-mariadb.cmyrfrazjwrq.your-region.rds.amazonaws.com
@@ -148,20 +148,20 @@ source sakila-db/sakila-schema.sql
 source sakila-db/sakila-data.sql
 source world_x-db/world_x.sql
 source world.sql
+exit
 ```
   * now test_db
 ```bash
 cd test_db
-mysql
-source employees.sql
+mysql < employees.sql
 cd ..
 ```
   * finally, the menagerie database
 ```bash
 cd menagerie-db
 mysql
-create database menagerie
-use menagerie
+create database menagerie;
+use menagerie;
 SOURCE cr_pet_tbl.sql
 LOAD DATA LOCAL INFILE 'pet.txt' INTO TABLE pet;
 SOURCE ins_puff_rec.sql
