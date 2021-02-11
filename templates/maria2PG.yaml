@@ -200,6 +200,7 @@ Resources:
           - "-"
           - - Ref: AWS::StackName
             - DmsVpc
+
   Subnet1:
     Type: AWS::EC2::Subnet
     Properties:
@@ -615,12 +616,17 @@ Resources:
       - Ref: Subnet1
       - Ref: Subnet2
       - Ref: Subnet3
+    DependsOn:
+      - Subnet1
+      - Subnet2
+      - Subnet3
 
   DMSReplicationInstance:
     Type: 'AWS::DMS::ReplicationInstance'
     DependsOn:
       - DMSCloudwatchRole
       - DMSVpcRole
+      - DMSReplicationSubnetGroup
     Properties:
       AllocatedStorage: 100
       AllowMajorVersionUpgrade: true
@@ -707,7 +713,7 @@ Resources:
   DMSVpcRole:
     Type: 'AWS::IAM::Role'
     Properties:
-      RoleName: dms-vpc-role-maria
+      RoleName: dms-vpc-role
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
