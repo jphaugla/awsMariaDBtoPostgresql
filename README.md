@@ -1,4 +1,4 @@
-# Convert MariaDB to Aurora Postgres
+# Convert MariaDB to RDS Postgres
 
 ## Purpose
 
