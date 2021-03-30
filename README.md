@@ -45,14 +45,13 @@ Initially used a CloudFormation template from [Data Migration Immersion Day](htt
 * [AWS Cloudformation](https://aws.amazon.com/cloudformation/)
 * [AWS DMS Workshop](https://dms-immersionday.workshop.aws/en)
 * [Amazon Kinesis](https://aws.amazon.com/kinesis)
-* [AWS Cloud 9](https://aws.amazon.com/cloud9/)
 * [Amazon RDS](https://aws.amazon.com/rds/)
 
 ## Technical Overview
 
 * Bring up DMS/SCT environment using modified immersion day template
 * Review Security Group Settings
-* Create sample MariaDB databases using Cloud9
+* Create sample MariaDB databases 
 * Use SCT and DMS to convert sample MariaDB databases to PostgreSQL
 * Additional DMS setup to use kinesis 
 
@@ -73,13 +72,15 @@ Initially used a CloudFormation template from [Data Migration Immersion Day](htt
 * Some tips on creating an AWS account with [AWS Account instructions](https://dms-immersionday.workshop.aws/en/envconfig/regular.html)
 * After reviewing  "Introduction" and "Getting Started", follow the Regular AWS Account instructions. ![Regular AWS Account](README_PHOTOS/InitialNavigation.jpg)
 * Complete the "Login to the AWS Console" and "Create an EC2 Key Pair" steps
-* In the "Configure the Environment" step, use the provided ./templates/maria2PG.yaml [maria2PG yaml](https://github.com/jphaugla/awsMariaDBtoPostgresql/blob/main/templates/maria2PG.yaml).  Choose SQL Server for the source database
+* In the "Configure the Environment" step, use the provided ./templates/maria2PG.yaml [maria2PG yaml](https://github.com/jphaugla/awsMariaDBtoPostgresql/blob/main/templates/maria2PG.yaml).  
+* Can choose to create the DMS components or save thoese components as an exercise
+* For the IPCidrToAllowTraffic parameter, enter workstation address.  This allows only this one IP address to access the prepared EC2 instances
 
 ### Edit Security Group Settings
 * Find the security group.  There are two security group created with the template.  Click on the InstanceSecurityGroup (not the DMSSecurityGroup)
-* Tighten security on the RDP rule.  Currently, the windows EC2 instance RCP port it is open to public
+* To change the workstation accessing the EC2 instances
     * Click "Edit Inbound Rules"
-    * on the RDP inbound rule, remove "0.0.0.0/16" and put in the address obtained in checkip with a /32  e.g.  "1.2.3.4/32"
+    * on the RDP inbound rule, edit  "x.x.x.x/16" and put in the address obtained in checkip with a /32  e.g.  "1.2.3.4/32"
     * open all internal communication on private.  Easy way is to change the inbound rule with Access Type of Oracle-RDS to All TCP
     * Click "save rules"
 
@@ -87,15 +88,15 @@ Initially used a CloudFormation template from [Data Migration Immersion Day](htt
 The MariaDB is set up as an RDS instance by the maria2PG cloudformation yaml file.  In the next step, an mysql/mariadb configuarion file will be created to defaul connection to our mysql instance.
 Set up the environment to connect to MariaDB using Cloud9
 
-* Open the cloud 9 instance by going to the Cloud 9 Console
-* Open the IDE created by the MariaDB cloudformation template by clicking on the "Open IDE" button ![Open Cloud9 IDE](README_PHOTOS/opencloud9IDE.jpg)
-* Create a mysql environment file to easily connect to MariaDB from Cloud9.  The file can not be in the default environment directory of Cloud9.  The file needs to be in your account's home directory.  Do ```cd ..``` to get to home directory.  The file name starts with a period and is named ".my.cnf"
-* File example is below.  For the host name, use the target mariaDB source endpoint. This is very wordy [mysql doc link](https://dev.mysql.com/doc/refman/8.0/en/option-files.html)
+* Open the Client EC2 instance using ssh
+bash```
+ssh -i ~/.ssh/<pem file> ec2-user@<ClientEC2PublicDSN>
+```
+* Modify the mysql environment file created with the cloudformation script
+* File example is below.  For the host name, use the target mariaDB source endpoint. This echo will add the host to the rest of the file which is pre-created by cloudformation
+    *This is very wordy [mysql doc link](https://dev.mysql.com/doc/refman/8.0/en/option-files.html)
 ```bash
-[client]
-host=your-project-mariadb.cmyrfrazjwrq.your-region.rds.amazonaws.com
-user=dbmaster
-password=dbmaster123
+echo "host=<mariaDBEndpoint>" >> .my.cnf
 ```
 * connect to the mariaDB database using the pre-installed mysql client
 ```bash
@@ -114,59 +115,12 @@ Type 'help;' or '\h' for help. Type '\c' to clear the current input statement.
 
 mysql>
 ```
-
-### Create sample databases
-This is a set of mysql [sample databases](https://dev.mysql.com/doc/index-other.html).  There is a pdf instruction guide for each of these sample databases also.  I will give the quickstart level steps but read these PDFs for more information
-
-* These are the sample databases ![sample databases](README_PHOTOS/mysqlSampleDBs.jpg)
-  * Note  a change was made to the parameter group for mariadb to prevent errors on the sakila import
-  * need to set log_bin_trust_function_creators =1  
-  * This is the error if the parameter is not set
-```bash
-  ERROR 1419 (HY000) at line 214 in file: './sakila-schema.sql': You do not have the SUPER privilege and binary logging is enabled (you *might* want to use the less safe log_bin_trust_function_creators variable)```
-```
-* Commands do download all these environments
-```bash
-wget https://downloads.mysql.com/docs/world.sql.gz
-wget https://downloads.mysql.com/docs/world_x-db.tar.gz
-wget https://downloads.mysql.com/docs/sakila-db.tar.gz
-wget https://downloads.mysql.com/docs/menagerie-db.tar.gz
-git clone https://github.com/datacharmer/test_db.git
-```
-* Uncompress each of the sample databases
-```bash
-tar -xvzf menagerie-db.tar.gz 
-tar -xvzf sakila-db.tar.gz
-gunzip world.sql.gz 
-tar -xvzf world_x-db.tar.gz
-```
-* include each of the databases
-  * create sakila and both world databases
-```bash
-mysql
-source sakila-db/sakila-schema.sql
-source sakila-db/sakila-data.sql
-source world_x-db/world_x.sql
-source world.sql
-exit
-```
-  * now test_db
-```bash
-cd test_db
-mysql < employees.sql
-cd ..
-```
-  * finally, the menagerie database
-```bash
-cd menagerie-db
-mysql
-create database menagerie;
-use menagerie;
-SOURCE cr_pet_tbl.sql
-LOAD DATA LOCAL INFILE 'pet.txt' INTO TABLE pet;
-SOURCE ins_puff_rec.sql
-SOURCE cr_event_tbl.sql
-LOAD DATA LOCAL INFILE 'event.txt' INTO TABLE event;
+### Install Test Databases
+bash```
+./testDB.sh
+# ignore this error 
+ERROR 1064 (42000) at line 4403: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'NOT NULL,
+  `_json_schema` json GENERATED ALWAYS AS (_utf8mb4'{"type":"object...' at line 3
 ```
 
 ## Windows Setup
@@ -277,3 +231,59 @@ Remove all files from S3 to avoid accruing unnecessary charges
 ---
 
 &nbsp;
+###  No Longer needed
+### Download sample databases  
+####  this section can be skipped now as this was all added to the user data
+This is a set of mysql [sample databases](https://dev.mysql.com/doc/index-other.html).  There is a pdf instruction guide for each of these sample databases also.  I will give the quickstart level steps but read these PDFs for more information
+
+* These are the sample databases ![sample databases](README_PHOTOS/mysqlSampleDBs.jpg)
+  * Note  a change was made to the parameter group for mariadb to prevent errors on the sakila import
+  * need to set log_bin_trust_function_creators =1  
+  * This is the error if the parameter is not set
+```bash
+  ERROR 1419 (HY000) at line 214 in file: './sakila-schema.sql': You do not have the SUPER privilege and binary logging is enabled (you *might* want to use the less safe log_bin_trust_function_creators variable)```
+```
+* Commands do download all these environments
+```bash
+wget https://downloads.mysql.com/docs/world.sql.gz
+wget https://downloads.mysql.com/docs/world_x-db.tar.gz
+wget https://downloads.mysql.com/docs/sakila-db.tar.gz
+wget https://downloads.mysql.com/docs/menagerie-db.tar.gz
+git clone https://github.com/datacharmer/test_db.git
+```
+* Uncompress each of the sample databases
+```bash
+tar -xvzf menagerie-db.tar.gz 
+tar -xvzf sakila-db.tar.gz
+gunzip world.sql.gz 
+tar -xvzf world_x-db.tar.gz
+```
+### Install sample databases
+* include each of the databases
+  * create sakila and both world databases
+```bash
+mysql
+source sakila-db/sakila-schema.sql
+source sakila-db/sakila-data.sql
+source world_x-db/world_x.sql
+source world.sql
+exit
+```
+  * now test_db
+```bash
+cd test_db
+mysql < employees.sql
+cd ..
+```
+  * finally, the menagerie database
+```bash
+cd menagerie-db
+mysql
+create database menagerie;
+use menagerie;
+SOURCE cr_pet_tbl.sql
+LOAD DATA LOCAL INFILE 'pet.txt' INTO TABLE pet;
+SOURCE ins_puff_rec.sql
+SOURCE cr_event_tbl.sql
+LOAD DATA LOCAL INFILE 'event.txt' INTO TABLE event;
+```

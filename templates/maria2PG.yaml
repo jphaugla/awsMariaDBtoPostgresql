@@ -72,6 +72,10 @@ Parameters:
       - 'MariaDB to Amazon RDS (PostgreSQL)'
       - 'MariaDB to Amazon S3'
     ConstraintDescription: Must select a lab environment from the options.
+  IPCidrToAllowTraffic:
+    Description: An IP address from where to allow ssh to client instance.
+    Type: String
+    Default: X.X.X.X/32
   KeyName:
     Description: Name of an existing EC2 KeyPair to enable RDP access to the instance
     Type: AWS::EC2::KeyPair::KeyName
@@ -124,6 +128,28 @@ Parameters:
       - m5a.4xlarge
       - m5a.8xlarge
     ConstraintDescription: Must be a valid EC2 instance type.
+
+  ClientEC2InstanceType:
+    Description: Amazon EC2 Linux Instance Type
+    Type: String
+    Default: t3.small
+    AllowedValues:
+      - t3.nano
+      - t3.micro
+      - t3.small
+      - t3.medium
+      - t3.large
+      - t3.xlarge
+      - m5.large
+      - m5.xlarge
+      - m5.2xlarge
+      - m5.4xlarge
+      - m5.8xlarge
+      - m5a.large
+      - m5a.xlarge
+      - m5a.2xlarge
+      - m5a.4xlarge
+      - m5a.8xlarge
   RDSInstanceType:
     Description: Amazon RDS Target Instance Type
     Type: String
@@ -171,6 +197,13 @@ Parameters:
     Description: The instance type to use for the replication instance.
     Type: String
 
+  ImageId:
+    Description: Image ID for client EC2 instance. Do not change this parameter.
+    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
+    Default: '/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2'
+    AllowedValues:
+      - '/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2'
+
   CreateDMSComponents:
     Description: If true, create the DMS instance, DMS endpoints, and the DMS task
     Type: String
@@ -184,6 +217,7 @@ Conditions:
   Create-MariaDB-to-AuroraPostgreSQL-Environment: !Equals [ !Ref LabType, 'MariaDB to Amazon Aurora (PostgreSQL)' ]
   Create-MariaDB-to-RDSPostgreSQL-Environment: !Equals [ !Ref LabType, 'MariaDB to Amazon RDS (PostgreSQL)' ]
   Create-MariaDB-to-S3-Environment: !Equals [ !Ref LabType, 'DB2 to Amazon S3']
+  Create-DMS-Environment: !Equals [ !Ref CreateDMSComponents, true ]
 
 Resources:
   DmsVpc:
@@ -345,35 +379,10 @@ Resources:
       VpcId: !Ref DmsVpc
       SecurityGroupIngress:
       - IpProtocol: tcp
-        FromPort: '3389'
-        ToPort: '3389'
-        CidrIp: 0.0.0.0/0
-        Description: Allows RDP access to EC2 Instance
-      - IpProtocol: tcp
-        FromPort: '50000'
-        ToPort: '50000'
-        CidrIp: !Ref VpcCIDR
-        Description: Allows DB2 access to EC2 Instance
-      - IpProtocol: tcp
-        FromPort: '1521'
-        ToPort: '1521'
-        CidrIp: !Ref VpcCIDR
-        Description: Allows Amazon RDS Oracle Access
-      - IpProtocol: tcp
-        FromPort: '5432'
-        ToPort: '5432'
-        CidrIp: !Ref VpcCIDR
-        Description: Allows Amazon RDS Aurora (PostgreSQL) Access
-      - IpProtocol: tcp
-        FromPort: '1433'
-        ToPort: '1433'
-        CidrIp: !Ref VpcCIDR
-        Description: Allows SQL Server Access
-      - IpProtocol: tcp
-        FromPort: '3306'
-        ToPort: '3306'
-        CidrIp: !Ref VpcCIDR 
-        Description: Allows Amazon RDS Aurora (MySQL) Access
+        FromPort: 0
+        ToPort: 65535
+        CidrIp: !Ref IPCidrToAllowTraffic
+        Description: Allows access to single client IP
 
   RDSSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -582,6 +591,7 @@ Resources:
 
       
   DMSExecutionRole:
+    Condition: Create-DMS-Environment
     Type: 'AWS::IAM::Role'
     Properties:
       AssumeRolePolicyDocument:
@@ -609,6 +619,7 @@ Resources:
                   - Arn
 
   DMSReplicationSubnetGroup:
+    Condition: Create-DMS-Environment
     Type: 'AWS::DMS::ReplicationSubnetGroup'
     Properties:
       ReplicationSubnetGroupDescription: 'DMS replication subnet'
@@ -622,6 +633,7 @@ Resources:
       - Subnet3
 
   DMSReplicationInstance:
+    Condition: Create-DMS-Environment
     Type: 'AWS::DMS::ReplicationInstance'
     DependsOn:
       - DMSCloudwatchRole
@@ -643,6 +655,7 @@ Resources:
 
 
   DMSAuroraEndpoint:
+    Condition: Create-DMS-Environment
     Condition: Create-MariaDB-to-AuroraPostgreSQL-Environment
     Type: 'AWS::DMS::Endpoint'
     Properties:
@@ -659,6 +672,7 @@ Resources:
       - AuroraPostgresqlCluster
 
   DMSRDSEndpoint:
+    Condition: Create-DMS-Environment
     Condition: Create-MariaDB-to-RDSPostgreSQL-Environment
     Type: 'AWS::DMS::Endpoint'
     Properties:
@@ -675,6 +689,7 @@ Resources:
       - RDSPostGresql
 
   DMSKinesisEndpoint:
+    Condition: Create-DMS-Environment
     Type: 'AWS::DMS::Endpoint'
     Properties:
       EngineName: kinesis
@@ -696,6 +711,7 @@ Resources:
       - DMSExecutionRole
 
   DMSMariaEndpoint:
+    Condition: Create-DMS-Environment
     Type: 'AWS::DMS::Endpoint'
     Properties:
       EngineName: mariadb
@@ -711,6 +727,7 @@ Resources:
       - MariaDB
 
   DMSVpcRole:
+    Condition: Create-DMS-Environment
     Type: 'AWS::IAM::Role'
     Properties:
       RoleName: dms-vpc-role
@@ -728,6 +745,7 @@ Resources:
       Path: /
 
   DMSCloudwatchRole:
+    Condition: Create-DMS-Environment
     Type: 'AWS::IAM::Role'
     Properties:
       RoleName: dms-cloudwatch-logs-role-maria
@@ -745,6 +763,7 @@ Resources:
       Path: /
       
   DMSTaskMigrationRDS:
+    Condition: Create-DMS-Environment
     Condition: Create-MariaDB-to-RDSPostgreSQL-Environment
     Type: 'AWS::DMS::ReplicationTask'
     Properties:
@@ -760,6 +779,7 @@ Resources:
       - DMSReplicationInstance
 
   DMSTaskMigrationKinesis:
+    Condition: Create-DMS-Environment
     Type: 'AWS::DMS::ReplicationTask'
     Properties:
       MigrationType: full-load-and-cdc
@@ -772,7 +792,9 @@ Resources:
       - DMSKinesisEndpoint
       - DMSMariaEndpoint
       - DMSReplicationInstance
+
   DMSTaskMigrationAurora:
+    Condition: Create-DMS-Environment
     Condition: Create-MariaDB-to-AuroraPostgreSQL-Environment
     Type: 'AWS::DMS::ReplicationTask'
     Properties:
@@ -787,28 +809,73 @@ Resources:
       - DMSMariaEndpoint
       - DMSReplicationInstance
 
-  DMSTaskMigrationKinesis:
-    Type: 'AWS::DMS::ReplicationTask'
+  ClientEC2Instance:
+    Type: 'AWS::EC2::Instance'
     Properties:
-      MigrationType: full-load-and-cdc
-      ReplicationInstanceArn: !Ref DMSReplicationInstance
-      SourceEndpointArn: !Ref DMSMariaEndpoint
-      TableMappings: >-
-        {"rules":[{"rule-type":"selection","rule-id":"1","rule-name":"1","object-locator":{"schema-name":"DB2INST%","table-name":"EMPLOYEE"},"rule-action":"include","filters":[]},{"rule-type":"selection","rule-id":"2","rule-action":"include","object-locator":{"schema-name":"DB2INST%","table-name":"DEPARTMENT"},"rule-name":"2"}]}
-      TargetEndpointArn: !Ref DMSKinesisEndpoint
-    DependsOn:
-      - DMSKinesisEndpoint
-      - DMSMariaEndpoint
-      - DMSReplicationInstance
+      ImageId: !Ref ImageId
+      InstanceType: !Ref ClientEC2InstanceType
+      KeyName: !Ref KeyName
+      Tags:
+      - Key: Name
+        Value:
+          Fn::Join:
+          - "-"
+          - - Ref: AWS::StackName
+            - ClientEC2Instance
+      NetworkInterfaces:
+      - AssociatePublicIpAddress: 'true'
+        DeleteOnTermination: 'true'
+        DeviceIndex: 0
+        SubnetId: !Ref Subnet2
+        GroupSet:
+        - Ref: InstanceSecurityGroup
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          sudo yum update -y
+          sudo yum install python3.8 -y
+          sudo yum install java-1.8.0-openjdk-devel -y
+          sudo yum erase awscli -y
+          sudo yum install mysql -y
+          sudo yum install postgresql -y
+          sudo yum install git maven -y
+          cd /home/ec2-user
+          echo "export PATH=.local/bin:$PATH" >> .bash_profile
+          cd /home/ec2-user
+          wget https://bootstrap.pypa.io/get-pip.py
+          su -c "python3.8 get-pip.py --user" -s /bin/sh ec2-user
+          su -c "/home/ec2-user/.local/bin/pip3 install boto3 --user" -s /bin/sh ec2-user
+          su -c "/home/ec2-user/.local/bin/pip3 install awscli --user" -s /bin/sh ec2-user
+          wget https://downloads.mysql.com/docs/world.sql.gz
+          wget https://downloads.mysql.com/docs/world_x-db.tar.gz
+          wget https://downloads.mysql.com/docs/sakila-db.tar.gz
+          wget https://downloads.mysql.com/docs/menagerie-db.tar.gz
+          git clone https://github.com/datacharmer/test_db.git
+          tar -xvzf menagerie-db.tar.gz
+          tar -xvzf sakila-db.tar.gz
+          gunzip world.sql.gz
+          tar -xvzf world_x-db.tar.gz
+          echo "[client]" > .my.cnf
+          echo "user=dbmaster" >> .my.cnf
+          echo "password=dbmaster123" >> .my.cnf
+          echo "mysql < sakila-db/sakila-schema.sql" > testDB.sh
+          echo "mysql <  sakila-db/sakila-data.sql" >> testDB.sh
+          echo "mysql <  world_x-db/world_x.sql" >> testDB.sh
+          echo "mysql <  world.sql" >> testDB.sh
+          echo "cd test_db" >> testDB.sh
+          echo "mysql < employees.sql" >> testDB.sh
+          echo "cd ../menagerie-db" >> testDB.sh
+          echo "mysql < menagerie.sql" >> testDB.sh
+          chmod 755 testDB.sh
+          echo "create database menagerie;" > menagerie-db/menagerie.sql
+          echo "use menagerie;" >> menagerie-db/menagerie.sql
+          echo "SOURCE cr_pet_tbl.sql;" >> menagerie-db/menagerie.sql
+          echo "LOAD DATA LOCAL INFILE 'pet.txt' INTO TABLE pet;" >> menagerie-db/menagerie.sql
+          echo "SOURCE ins_puff_rec.sql;" >> menagerie-db/menagerie.sql
+          echo "SOURCE cr_event_tbl.sql;" >> menagerie-db/menagerie.sql
+          echo "LOAD DATA LOCAL INFILE 'event.txt' INTO TABLE pet;" >> menagerie-db/menagerie.sql
 
-  Cloud9Instance:
-    Type: AWS::Cloud9::EnvironmentEC2
-    Properties:
-      Name: 'MariaDB-Postgresql-Cloud9-Instance'
-      Description: 'Cloud9 Instance for MariaDB to Postgresql'
-      AutomaticStopTimeMinutes: 240
-      SubnetId: !Ref Subnet3
-      InstanceType: 't3.small'
+
     
 Outputs:
   SourceEC2PublicDNS:
@@ -817,7 +884,7 @@ Outputs:
       Fn::GetAtt:
       - EC2Instance
       - PublicDnsName
-  SourceEC2PrivateDNS:
+  TargetEC2PrivateDNS:
     Description: Private DNS endpoint for the EC2 instance
     Value:
       Fn::GetAtt:
@@ -835,23 +902,27 @@ Outputs:
     Description: Target RDS Postgresql Endpoint
     Value:
       Fn::GetAtt:
+      - RDSPostGresql
+      - Endpoint.Address
+  SourceRDSMariaEndpoint:
+    Description: Source RDS MariaDB Endpoint
+    Value:
+      Fn::GetAtt:
       - MariaDB
       - Endpoint.Address
   TargetKinesisEndpoint:
-    Condition: Create-MariaDB-to-AuroraPostgreSQL-Environment
     Description: Target Kinesis Endpoint
     Value:
       Fn::GetAtt:
       - testkinesisstream
       - Arn
-  Cloud9Endpoint:
-    Description: Cloud9 URL
+  ClientEC2PublicDNS:
+    Description: Client EC2 public dns
     Value:
       Fn::GetAtt:
-      - Cloud9Instance
-      - Arn
+      - ClientEC2Instance
+      - PublicDnsName
   TargetKinesisRole:
-    Condition: Create-MariaDB-to-AuroraPostgreSQL-Environment
     Description: Target Kinesis Role
       - DMSExecutionRole
       - Arn
