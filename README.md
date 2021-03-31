@@ -86,10 +86,10 @@ Initially used a CloudFormation template from [Data Migration Immersion Day](htt
 
 ## MariaDB Setup
 The MariaDB is set up as an RDS instance by the maria2PG cloudformation yaml file.  In the next step, an mysql/mariadb configuarion file will be created to defaul connection to our mysql instance.
-Set up the environment to connect to MariaDB using Cloud9
+Set up the environment to connect to MariaDB using the EC2 unix environment
 
 * Open the Client EC2 instance using ssh
-bash```
+```bash
 ssh -i ~/.ssh/<pem file> ec2-user@<ClientEC2PublicDSN>
 ```
 * Modify the mysql environment file created with the cloudformation script
@@ -116,7 +116,7 @@ Type 'help;' or '\h' for help. Type '\c' to clear the current input statement.
 mysql>
 ```
 ### Install Test Databases
-bash```
+```bash
 ./testDB.sh
 # ignore this error 
 ERROR 1064 (42000) at line 4403: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'NOT NULL,
