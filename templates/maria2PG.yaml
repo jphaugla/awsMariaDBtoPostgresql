@@ -771,7 +771,7 @@ Resources:
       ReplicationInstanceArn: !Ref DMSReplicationInstance
       SourceEndpointArn: !Ref DMSMariaEndpoint
       TableMappings: >-
-        {"rules":[{"rule-type":"selection","rule-id":"4","rule-name":"4","object-locator":{"schema-name":"%","table-name":"%"},"rule-action":"include","filters":[]}]}
+        {"rules":[{"rule-type":"selection","rule-id":"1","rule-name":"1","object-locator":{"schema-name":"sakila","table-name":"%"},"rule-action":"include"}, {"rule-type":"selection","rule-id":"2","rule-name":"2","object-locator":{"schema-name":"employees","table-name":"%"},"rule-action":"include"}, {"rule-type":"selection","rule-id":"3","rule-name":"3","object-locator":{"schema-name":"world","table-name":"%"},"rule-action":"include"}, {"rule-type":"selection","rule-id":"4","rule-name":"4","object-locator":{"schema-name":"world_x","table-name":"%"},"rule-action":"include"}, {"rule-type":"selection","rule-id":"5","rule-name":"5","object-locator":{"schema-name":"menagerie","table-name":"%"},"rule-action":"include"}]}
       TargetEndpointArn: !Ref DMSRDSEndpoint
     DependsOn:
       - DMSRDSEndpoint
